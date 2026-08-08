@@ -51,7 +51,11 @@ class _TourTargetState extends State<TourTarget> {
 
   @override
   void dispose() {
-    widget.controller.unregisterTarget(id: widget.id, targetKey: widget.targetKey);
+    // Defer unregistration until after the current frame to avoid
+    // touching ancestor lookups while the element tree is being unmounted.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.controller.unregisterTarget(id: widget.id, targetKey: widget.targetKey);
+    });
     super.dispose();
   }
 

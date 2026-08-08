@@ -105,11 +105,22 @@ class _TourOverlayState extends State<TourOverlay> {
                           preferredPosition: step.tooltipPosition,
                           screenSize: screenSize,
                         ),
-                        child: _TooltipBubble(
-                          step: step,
-                          controller: controller,
-                          theme: controller.theme,
-                        ),
+                        child: widget.tooltipBuilder != null
+                            ? Builder(
+                                builder: (ctx) => widget.tooltipBuilder!(
+                                  ctx,
+                                  step,
+                                  controller,
+                                  highlight,
+                                  screenSize,
+                                  widget.theme ?? controller.theme,
+                                ),
+                              )
+                            : _TooltipBubble(
+                                step: step,
+                                controller: controller,
+                                theme: controller.theme,
+                              ),
                       ),
                     ],
                   ),
@@ -160,8 +171,10 @@ class _TooltipBubble extends StatelessWidget {
                 style: theme.descriptionTextStyle,
               ),
               const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+              Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   TextButton(
                     onPressed: controller.skip,

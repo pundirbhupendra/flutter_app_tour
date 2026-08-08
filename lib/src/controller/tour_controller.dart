@@ -28,6 +28,7 @@ class TourController extends ChangeNotifier {
   int _transitionId = 0;
   bool _isActive = false;
   bool _isDisposed = false;
+  Timer? _pendingFadeTimer;
 
   /// The ordered steps displayed by this tour.
   List<TourStep> get steps => _steps;
@@ -83,6 +84,11 @@ class TourController extends ChangeNotifier {
   }
 
   /// Starts the tour from its first valid target.
+  ///
+  /// This activates the controller and advances to the first step that has
+  /// a mounted target. It performs any necessary scrolling via the
+  /// surrounding UI (through `TourScope`) and notifies listeners to show the
+  /// overlay.
   Future<void> start() async {
     if (_steps.isEmpty || _isDisposed) return;
     final transitionId = ++_transitionId;
@@ -93,6 +99,8 @@ class TourController extends ChangeNotifier {
   }
 
   /// Advances to the next valid target, finishing after the final step.
+  ///
+  /// If the controller is inactive or disposed this method is a no-op.
   Future<void> next() async {
     if (!_isActive || _isDisposed) return;
     final transitionId = ++_transitionId;
@@ -103,6 +111,9 @@ class TourController extends ChangeNotifier {
   }
 
   /// Returns to the previous valid target when one is available.
+  ///
+  /// If there is no previous step or the controller is inactive this method
+  /// does nothing.
   Future<void> previous() async {
     if (!_isActive || isFirstStep || _isDisposed) return;
     final transitionId = ++_transitionId;
@@ -116,6 +127,10 @@ class TourController extends ChangeNotifier {
   void skip() => finish();
 
   /// Completes the tour.
+  ///
+  /// Marks the controller inactive and notifies listeners so the overlay
+  /// can hide. Does not persist seen state; callers should use
+  /// [markTourAsSeen] when appropriate.
   void finish() {
     if (_isDisposed) return;
     _transitionId++;
@@ -124,6 +139,10 @@ class TourController extends ChangeNotifier {
   }
 
   /// Registers [targetKey] as the target identified by [id].
+  ///
+  /// Targets should call this during their `initState` to make themselves
+  /// discoverable by the controller. The `targetKey` is used to compute the
+  /// target's global bounds.
   void registerTarget({required TourId id, required GlobalKey targetKey}) {
     _targetKeys[id] = targetKey;
   }
@@ -134,10 +153,20 @@ class TourController extends ChangeNotifier {
   /// trying to paint a highlight around a disposed render object.
   void unregisterTarget({required TourId id, required GlobalKey targetKey}) {
     if (_targetKeys[id] == targetKey) _targetKeys.remove(id);
-    if (_isActive && currentStep?.id == id) unawaited(next());
+    if (_isActive && currentStep?.id == id) unawaited(_advanceWithoutFade());
+  }
+
+  Future<void> _advanceWithoutFade() async {
+    if (!_isActive || _isDisposed) return;
+    final transitionId = ++_transitionId;
+    _currentIndex++;
+    await _activateNextAvailableStep(transitionId);
   }
 
   /// Rebuilds the overlay after layout-affecting events such as rotation.
+  ///
+  /// This method is safe to call from UI code when the layout has changed;
+  /// it will advance the tour if the current target is no longer mounted.
   void refreshLayout() {
     if (_isActive && currentStep?.targetKey.currentContext == null) {
       unawaited(next());
@@ -147,12 +176,22 @@ class TourController extends ChangeNotifier {
   }
 
   /// Returns the global bounds of the target registered under [id], if mounted.
+  ///
+  /// Returns `null` when the target is not currently mounted in the tree.
   Rect? targetRect(TourId id) => rectForKey(_targetKeys[id]);
 
   /// Returns global bounds for [targetKey], or `null` when it is not mounted.
+  ///
+  /// This is a convenience helper used by the overlay to position highlights
+  /// and tooltips.
   static Rect? rectForKey(GlobalKey? targetKey) {
-    final renderBox = targetKey?.currentContext?.findRenderObject()
-        as RenderBox?;
+    RenderBox? renderBox;
+    try {
+      renderBox = targetKey?.currentContext?.findRenderObject() as RenderBox?;
+    } catch (_) {
+      // The element may be inactive (being unmounted). Treat as not mounted.
+      return null;
+    }
     if (renderBox == null || !renderBox.hasSize) return null;
     return renderBox.localToGlobal(Offset.zero) & renderBox.size;
   }
@@ -201,7 +240,12 @@ class TourController extends ChangeNotifier {
     if (!_isActive) return;
     _isActive = false;
     _notifySafely();
-    await Future<void>.delayed(transitionDuration);
+    final completer = Completer<void>();
+    _pendingFadeTimer = Timer(transitionDuration, () {
+      _pendingFadeTimer = null;
+      completer.complete();
+    });
+    await completer.future;
     if (!_isCurrentTransition(transitionId)) return;
   }
 
@@ -216,6 +260,8 @@ class TourController extends ChangeNotifier {
   void dispose() {
     _isDisposed = true;
     _transitionId++;
+    _pendingFadeTimer?.cancel();
+    _pendingFadeTimer = null;
     super.dispose();
   }
 }
