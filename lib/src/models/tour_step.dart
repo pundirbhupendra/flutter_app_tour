@@ -1,5 +1,8 @@
 import 'package:flutter/widgets.dart';
 
+import '../animation/animation_config.dart';
+import '../animation/tour_animation.dart';
+
 import 'tour_id.dart';
 
 /// Controls where a tour tooltip is placed relative to its target.
@@ -28,6 +31,8 @@ class TourStep {
     required this.title,
     required this.description,
     this.tooltipPosition = TooltipPosition.auto,
+    this.animation = TourAnimation.pulse,
+    this.animationConfig,
   });
 
   /// A strongly typed identifier for this step.
@@ -44,4 +49,13 @@ class TourStep {
 
   /// The preferred position of this step's tooltip.
   final TooltipPosition tooltipPosition;
+
+  /// The animation applied to the highlight layer when this step becomes active.
+  ///
+  /// Defaults to [TourAnimation.pulse]. Set to [TourAnimation.none] to disable.
+  final TourAnimation animation;
+
+  /// Optional per-step animation configuration. When omitted, sensible
+  /// defaults from [TourAnimationConfig.defaultConfig] are used.
+  final TourAnimationConfig? animationConfig;
 }

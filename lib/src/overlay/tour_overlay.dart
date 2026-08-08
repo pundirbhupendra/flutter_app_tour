@@ -1,11 +1,15 @@
 import 'dart:math' as math;
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
 import '../controller/tour_controller.dart';
 import '../models/tour_step.dart';
 import '../theme/tour_theme.dart';
+import '../theme/arrow_painter.dart';
 import 'highlight_painter.dart';
+import '../animation/animation_controller_layer.dart';
+import '../animation/animation_config.dart';
 
 /// Builds a tooltip widget for a tour step.
 ///
@@ -87,43 +91,58 @@ class _TourOverlayState extends State<TourOverlay> {
               tween: RectTween(end: targetRect),
               builder: (context, animatedRect, _) {
                 final highlight = animatedRect ?? targetRect;
-                return Material(
-                  color: Colors.transparent,
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
+                return Stack(
+                  children: [
+                    Positioned.fill(
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: widget.theme?.overlayBlur ?? controller.theme.overlayBlur, sigmaY: widget.theme?.overlayBlur ?? controller.theme.overlayBlur),
+                        child: Container(color: widget.theme?.overlayColor ?? controller.theme.overlayColor),
+                      ),
+                    ),
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        ignoring: !controller.isActive,
                         child: CustomPaint(
                           painter: HighlightPainter(
                             highlight: highlight,
-                            color: controller.theme.overlayColor,
+                            color: widget.theme?.overlayColor ?? controller.theme.overlayColor,
                           ),
                         ),
                       ),
-                      CustomSingleChildLayout(
-                        delegate: _TooltipLayoutDelegate(
-                          targetRect: highlight,
-                          preferredPosition: step.tooltipPosition,
-                          screenSize: screenSize,
-                        ),
-                        child: widget.tooltipBuilder != null
-                            ? Builder(
-                                builder: (ctx) => widget.tooltipBuilder!(
-                                  ctx,
-                                  step,
-                                  controller,
-                                  highlight,
-                                  screenSize,
-                                  widget.theme ?? controller.theme,
-                                ),
-                              )
-                            : _TooltipBubble(
-                                step: step,
-                                controller: controller,
-                                theme: controller.theme,
-                              ),
+                    ),
+                    AnimationControllerLayer(
+                      animationConfig: (step.animationConfig ?? TourAnimationConfig.defaultConfig).copyWith(
+                        type: step.animation,
                       ),
-                    ],
-                  ),
+                      targetRect: highlight,
+                      child: const SizedBox.shrink(),
+                    ),
+                    CustomSingleChildLayout(
+                      delegate: _TooltipLayoutDelegate(
+                        targetRect: highlight,
+                        preferredPosition: step.tooltipPosition,
+                        screenSize: screenSize,
+                      ),
+                      child: widget.tooltipBuilder != null
+                          ? Builder(
+                              builder: (ctx) => widget.tooltipBuilder!(
+                                ctx,
+                                step,
+                                controller,
+                                highlight,
+                                screenSize,
+                                widget.theme ?? controller.theme,
+                              ),
+                            )
+                          : _FloatingTooltipCard(
+                              step: step,
+                              controller: controller,
+                              theme: widget.theme ?? controller.theme,
+                              targetRect: highlight,
+                              screenSize: screenSize,
+                            ),
+                    ),
+                  ],
                 );
               },
             ),
@@ -134,65 +153,87 @@ class _TourOverlayState extends State<TourOverlay> {
   }
 }
 
-class _TooltipBubble extends StatelessWidget {
-  const _TooltipBubble({
+class _FloatingTooltipCard extends StatelessWidget {
+  const _FloatingTooltipCard({
     required this.step,
     required this.controller,
     required this.theme,
+    required this.targetRect,
+    required this.screenSize,
   });
 
   final TourStep step;
   final TourController controller;
   final TourTheme theme;
+  final Rect targetRect;
+  final Size screenSize;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final maxWidth = math.min(320.0, MediaQuery.sizeOf(context).width - 32);
+    final maxWidth = math.min(360.0, screenSize.width - 48);
+    final bg = theme.tooltipBackgroundColor ?? colorScheme.surface;
+    final radius = BorderRadius.circular(theme.tooltipBorderRadius);
+    final indicatorColor = theme.indicatorColor ?? colorScheme.primary;
+
+    final progressLine = theme.progressIndicatorType == TourProgressIndicatorType.fraction
+        ? Text('${controller.currentIndex + 1} / ${controller.steps.length}', style: theme.descriptionTextStyle ?? Theme.of(context).textTheme.bodyMedium)
+        : _StepDots(
+            currentIndex: controller.currentIndex,
+            stepCount: controller.steps.length,
+            color: indicatorColor,
+          );
+
     return ConstrainedBox(
       constraints: BoxConstraints(maxWidth: maxWidth),
       child: Material(
-        color: theme.tooltipBackgroundColor ?? colorScheme.surface,
-        borderRadius: theme.tooltipBorderRadius,
-        elevation: 8,
+        color: bg,
+        elevation: theme.elevation,
+        shadowColor: theme.shadowColor,
+        shape: RoundedRectangleBorder(borderRadius: radius),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: theme.padding,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 step.title,
-                style: theme.titleTextStyle ?? Theme.of(context).textTheme.titleMedium,
+                style: theme.titleTextStyle ?? Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, fontSize: 18),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Text(
                 step.description,
-                style: theme.descriptionTextStyle,
+                style: theme.descriptionTextStyle ?? Theme.of(context).textTheme.bodyMedium,
               ),
-              const SizedBox(height: 12),
-              Wrap(
-                alignment: WrapAlignment.end,
-                spacing: 8,
-                runSpacing: 8,
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  TextButton(
-                    onPressed: controller.skip,
-                    style: theme.skipButtonStyle,
-                    child: const Text('Skip'),
-                  ),
+                  if (theme.showProgressDots || theme.progressIndicatorType == TourProgressIndicatorType.fraction)
+                    Expanded(child: progressLine),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
                   if (!controller.isFirstStep)
                     TextButton(
-                      onPressed: () => controller.previous(),
+                      onPressed: controller.previous,
                       style: theme.previousButtonStyle,
-                      child: const Text('Previous'),
+                      child: const Text('← Previous'),
+                    )
+                  else
+                    TextButton(
+                      onPressed: controller.skip,
+                      style: theme.skipButtonStyle,
+                      child: const Text('Skip'),
                     ),
+                  const Spacer(),
                   FilledButton(
-                    onPressed: controller.isLastStep
-                        ? controller.finish
-                        : () => controller.next(),
+                    onPressed: controller.isLastStep ? controller.finish : () => controller.next(),
                     style: theme.nextButtonStyle,
-                    child: Text(controller.isLastStep ? 'Done' : 'Next'),
+                    child: Text(controller.isLastStep ? 'Finish ✓' : 'Next'),
                   ),
                 ],
               ),
@@ -200,6 +241,39 @@ class _TooltipBubble extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _StepDots extends StatelessWidget {
+  const _StepDots({
+    required this.currentIndex,
+    required this.stepCount,
+    required this.color,
+  });
+
+  final int currentIndex;
+  final int stepCount;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List<Widget>.generate(stepCount, (index) {
+        final bool isActive = index == currentIndex;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4.0),
+          child: Container(
+            width: isActive ? 12 : 8,
+            height: isActive ? 12 : 8,
+            decoration: BoxDecoration(
+              color: isActive ? color : color.withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+            ),
+          ),
+        );
+      }),
     );
   }
 }
