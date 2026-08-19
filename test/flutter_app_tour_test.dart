@@ -27,7 +27,9 @@ void main() {
 
     tearDown(() => controller.dispose());
 
-    testWidgets('starts, advances, goes back, skips, and finishes', (tester) async {
+    testWidgets('starts, advances, goes back, skips, and finishes', (
+      tester,
+    ) async {
       await _pumpTargets(tester, controller, steps);
 
       await controller.start();
@@ -54,7 +56,9 @@ void main() {
       expect(controller.isActive, isFalse);
     });
 
-    testWidgets('sequences through three steps and finishes after the last', (tester) async {
+    testWidgets('sequences through three steps and finishes after the last', (
+      tester,
+    ) async {
       await _pumpTargets(tester, controller, steps);
       await controller.start();
 
@@ -72,21 +76,23 @@ void main() {
       expect(controller.isActive, isFalse);
     });
 
-    testWidgets('renders the active step title and description in the overlay',
-        (tester) async {
-      await _pumpTargets(tester, controller, steps);
-      await controller.start();
-      await tester.pumpAndSettle();
-      expect(find.text('Title 0'), findsOneWidget);
-      expect(find.text('Description 0'), findsOneWidget);
-      expect(find.text('Next'), findsOneWidget);
+    testWidgets(
+      'renders the active step title and description in the overlay',
+      (tester) async {
+        await _pumpTargets(tester, controller, steps);
+        await controller.start();
+        await tester.pumpAndSettle();
+        expect(find.text('Title 0'), findsOneWidget);
+        expect(find.text('Description 0'), findsOneWidget);
+        expect(find.text('Next'), findsOneWidget);
 
-      await tester.tap(find.text('Next'));
-      await tester.pump(TourController.transitionDuration);
-      await tester.pumpAndSettle();
-      expect(find.text('Title 1'), findsOneWidget);
-      expect(find.text('Description 1'), findsOneWidget);
-    });
+        await tester.tap(find.text('Next'));
+        await tester.pump(TourController.transitionDuration);
+        await tester.pumpAndSettle();
+        expect(find.text('Title 1'), findsOneWidget);
+        expect(find.text('Description 1'), findsOneWidget);
+      },
+    );
   });
 
   test('persists seen state using mocked SharedPreferences', () async {
@@ -98,7 +104,9 @@ void main() {
     expect(await TourController.hasSeenTour('onboarding-v1'), isTrue);
   });
 
-  testWidgets('handles target removal during widget dispose without throwing', (tester) async {
+  testWidgets('handles target removal during widget dispose without throwing', (
+    tester,
+  ) async {
     final key = GlobalKey();
     final step = TourStep(
       id: TourId('remove-test'),
@@ -111,9 +119,11 @@ void main() {
     // Host widget that can remove the TourTarget on demand.
     final hostKey = GlobalKey<_TestHostState>();
 
-    await tester.pumpWidget(MaterialApp(
-      home: TestHost(key: hostKey, controller: controller, step: step),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TestHost(key: hostKey, controller: controller, step: step),
+      ),
+    );
 
     await controller.start();
     await tester.pumpAndSettle();
@@ -138,20 +148,23 @@ void main() {
     );
     final controller = TourController(steps: [step]);
 
-    await tester.pumpWidget(MaterialApp(
-      home: TourScope(
-        controller: controller,
-        tooltipBuilder: (ctx, s, c, rect, size, theme) => const Text('CustomTip'),
-        child: Scaffold(
-          body: TourTarget(
-            id: step.id,
-            controller: controller,
-            targetKey: step.targetKey,
-            child: const SizedBox(width: 10, height: 10),
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TourScope(
+          controller: controller,
+          tooltipBuilder: (ctx, s, c, rect, size, theme) =>
+              const Text('CustomTip'),
+          child: Scaffold(
+            body: TourTarget(
+              id: step.id,
+              controller: controller,
+              targetKey: step.targetKey,
+              child: const SizedBox(width: 10, height: 10),
+            ),
           ),
         ),
       ),
-    ));
+    );
 
     await controller.start();
     await tester.pumpAndSettle();

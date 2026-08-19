@@ -33,7 +33,10 @@ class _TourTargetState extends State<TourTarget> {
   @override
   void initState() {
     super.initState();
-    widget.controller.registerTarget(id: widget.id, targetKey: widget.targetKey);
+    widget.controller.registerTarget(
+      id: widget.id,
+      targetKey: widget.targetKey,
+    );
   }
 
   @override
@@ -42,10 +45,14 @@ class _TourTargetState extends State<TourTarget> {
     if (oldWidget.id != widget.id ||
         oldWidget.controller != widget.controller ||
         oldWidget.targetKey != widget.targetKey) {
-      oldWidget.controller
-          .unregisterTarget(id: oldWidget.id, targetKey: oldWidget.targetKey);
-      widget.controller
-          .registerTarget(id: widget.id, targetKey: widget.targetKey);
+      oldWidget.controller.unregisterTarget(
+        id: oldWidget.id,
+        targetKey: oldWidget.targetKey,
+      );
+      widget.controller.registerTarget(
+        id: widget.id,
+        targetKey: widget.targetKey,
+      );
     }
   }
 
@@ -54,14 +61,15 @@ class _TourTargetState extends State<TourTarget> {
     // Defer unregistration until after the current frame to avoid
     // touching ancestor lookups while the element tree is being unmounted.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.controller.unregisterTarget(id: widget.id, targetKey: widget.targetKey);
+      widget.controller.unregisterTarget(
+        id: widget.id,
+        targetKey: widget.targetKey,
+      );
     });
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => KeyedSubtree(
-        key: widget.targetKey,
-        child: widget.child,
-      );
+  Widget build(BuildContext context) =>
+      KeyedSubtree(key: widget.targetKey, child: widget.child);
 }

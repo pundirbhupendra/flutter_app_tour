@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../controller/tour_controller.dart';
 import '../models/tour_step.dart';
+import '../positioning/tooltip_positioner.dart';
 import '../theme/tour_theme.dart';
 import 'highlight_painter.dart';
 import '../animation/animation_controller_layer.dart';
@@ -15,14 +16,15 @@ import '../animation/animation_config.dart';
 /// The callback receives the current [step], the active [controller], the
 /// target rectangle being highlighted, the available [screenSize], and the
 /// active [theme].
-typedef TourTooltipBuilder = Widget Function(
-  BuildContext context,
-  TourStep step,
-  TourController controller,
-  Rect targetRect,
-  Size screenSize,
-  TourTheme theme,
-);
+typedef TourTooltipBuilder =
+    Widget Function(
+      BuildContext context,
+      TourStep step,
+      TourController controller,
+      Rect targetRect,
+      Size screenSize,
+      TourTheme theme,
+    );
 
 /// Renders the current tour step in an [OverlayEntry].
 class TourOverlay extends StatefulWidget {
@@ -70,8 +72,10 @@ class _TourOverlayState extends State<TourOverlay> {
       builder: (context, _) {
         final step = controller.currentStep;
         if (step == null) return const SizedBox.shrink();
+        final theme = widget.theme ?? controller.theme;
 
-        final targetRect = TourController.rectForKey(step.targetKey) ??
+        final targetRect =
+            TourController.rectForKey(step.targetKey) ??
             Rect.fromCenter(
               center: screenSize.center(Offset.zero),
               width: 0,
@@ -89,13 +93,26 @@ class _TourOverlayState extends State<TourOverlay> {
               curve: Curves.easeInOut,
               tween: RectTween(end: targetRect),
               builder: (context, animatedRect, _) {
-                final highlight = animatedRect ?? targetRect;
-                  return Stack(
+                final highlight = _spotlightRect(
+                  animatedRect ?? targetRect,
+                  step,
+                  theme,
+                  screenSize,
+                );
+                final overlayColor = theme.overlayOpacity == null
+                    ? theme.overlayColor
+                    : theme.overlayColor.withValues(
+                        alpha: theme.overlayOpacity,
+                      );
+                return Stack(
                   children: [
                     Positioned.fill(
                       child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: widget.theme?.overlayBlur ?? controller.theme.overlayBlur, sigmaY: widget.theme?.overlayBlur ?? controller.theme.overlayBlur),
-                        child: Container(color: widget.theme?.overlayColor ?? controller.theme.overlayColor),
+                        filter: ImageFilter.blur(
+                          sigmaX: theme.overlayBlur,
+                          sigmaY: theme.overlayBlur,
+                        ),
+                        child: Container(color: overlayColor),
                       ),
                     ),
                     Positioned.fill(
@@ -104,15 +121,20 @@ class _TourOverlayState extends State<TourOverlay> {
                         child: CustomPaint(
                           painter: HighlightPainter(
                             highlight: highlight,
-                            color: widget.theme?.overlayColor ?? controller.theme.overlayColor,
+                            color: overlayColor,
+                            shape: step.spotlightShape ?? theme.spotlightShape,
+                            borderRadius: BorderRadius.circular(
+                              step.spotlightRadius ?? theme.spotlightRadius,
+                            ),
                           ),
                         ),
                       ),
                     ),
                     AnimationControllerLayer(
-                      animationConfig: (step.animationConfig ?? TourAnimationConfig.defaultConfig).copyWith(
-                        type: step.animation,
-                      ),
+                      animationConfig:
+                          (step.animationConfig ??
+                                  TourAnimationConfig.defaultConfig)
+                              .copyWith(type: step.animation),
                       targetRect: highlight,
                       child: const SizedBox.shrink(),
                     ),
@@ -130,13 +152,13 @@ class _TourOverlayState extends State<TourOverlay> {
                                 controller,
                                 highlight,
                                 screenSize,
-                                widget.theme ?? controller.theme,
+                                theme,
                               ),
                             )
                           : _FloatingTooltipCard(
                               step: step,
                               controller: controller,
-                              theme: widget.theme ?? controller.theme,
+                              theme: theme,
                               targetRect: highlight,
                               screenSize: screenSize,
                             ),
@@ -148,6 +170,23 @@ class _TourOverlayState extends State<TourOverlay> {
           ),
         );
       },
+    );
+  }
+
+  Rect _spotlightRect(
+    Rect targetRect,
+    TourStep step,
+    TourTheme theme,
+    Size screenSize,
+  ) {
+    final expanded = targetRect.inflate(
+      step.spotlightPadding ?? theme.spotlightPadding,
+    );
+    return Rect.fromLTRB(
+      expanded.left.clamp(0.0, screenSize.width).toDouble(),
+      expanded.top.clamp(0.0, screenSize.height).toDouble(),
+      expanded.right.clamp(0.0, screenSize.width).toDouble(),
+      expanded.bottom.clamp(0.0, screenSize.height).toDouble(),
     );
   }
 }
@@ -175,8 +214,14 @@ class _FloatingTooltipCard extends StatelessWidget {
     final radius = BorderRadius.circular(theme.tooltipBorderRadius);
     final indicatorColor = theme.indicatorColor ?? colorScheme.primary;
 
-    final progressLine = theme.progressIndicatorType == TourProgressIndicatorType.fraction
-        ? Text('${controller.currentIndex + 1} / ${controller.steps.length}', style: theme.descriptionTextStyle ?? Theme.of(context).textTheme.bodyMedium)
+    final progressLine =
+        theme.progressIndicatorType == TourProgressIndicatorType.fraction
+        ? Text(
+            '${controller.currentIndex + 1} / ${controller.steps.length}',
+            style:
+                theme.descriptionTextStyle ??
+                Theme.of(context).textTheme.bodyMedium,
+          )
         : _StepDots(
             currentIndex: controller.currentIndex,
             stepCount: controller.steps.length,
@@ -198,42 +243,54 @@ class _FloatingTooltipCard extends StatelessWidget {
             children: [
               Text(
                 step.title,
-                style: theme.titleTextStyle ?? Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, fontSize: 18),
+                style:
+                    theme.titleTextStyle ??
+                    Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 18,
+                    ),
               ),
               const SizedBox(height: 10),
               Text(
                 step.description,
-                style: theme.descriptionTextStyle ?? Theme.of(context).textTheme.bodyMedium,
+                style:
+                    theme.descriptionTextStyle ??
+                    Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  if (theme.showProgressDots || theme.progressIndicatorType == TourProgressIndicatorType.fraction)
+                  if (theme.showStepIndicator ||
+                      theme.progressIndicatorType ==
+                          TourProgressIndicatorType.fraction)
                     Expanded(child: progressLine),
                 ],
               ),
               const SizedBox(height: 16),
               Row(
                 children: [
-                  if (!controller.isFirstStep)
+                  if (!controller.isFirstStep && theme.showPreviousButton)
                     TextButton(
                       onPressed: controller.previous,
                       style: theme.previousButtonStyle,
                       child: const Text('← Previous'),
                     )
-                  else
+                  else if (theme.showSkipButton)
                     TextButton(
                       onPressed: controller.skip,
                       style: theme.skipButtonStyle,
                       child: const Text('Skip'),
                     ),
                   const Spacer(),
-                  FilledButton(
-                    onPressed: controller.isLastStep ? controller.finish : () => controller.next(),
-                    style: theme.nextButtonStyle,
-                    child: Text(controller.isLastStep ? 'Finish ✓' : 'Next'),
-                  ),
+                  if (theme.showNextButton)
+                    FilledButton(
+                      onPressed: controller.isLastStep
+                          ? controller.complete
+                          : controller.next,
+                      style: theme.nextButtonStyle,
+                      child: Text(controller.isLastStep ? 'Done' : 'Next'),
+                    ),
                 ],
               ),
             ],
@@ -293,55 +350,15 @@ class _TooltipLayoutDelegate extends SingleChildLayoutDelegate {
 
   @override
   Offset getPositionForChild(Size size, Size childSize) {
-    final positions = _positionsFor(preferredPosition);
-    for (final position in positions) {
-      final offset = _offsetFor(position, childSize);
-      if (_fits(offset, childSize)) return offset;
-    }
-    final fallback = _offsetFor(positions.first, childSize);
-    return Offset(
-      fallback.dx
-          .clamp(_margin, size.width - childSize.width - _margin)
-          .toDouble(),
-      fallback.dy
-          .clamp(_margin, size.height - childSize.height - _margin)
-          .toDouble(),
+    return TooltipPositioner.position(
+      targetRect: targetRect,
+      childSize: childSize,
+      screenSize: size,
+      preferredPosition: preferredPosition,
+      margin: _margin,
+      gap: _gap,
     );
   }
-
-  List<TooltipPosition> _positionsFor(TooltipPosition preferred) {
-    switch (preferred) {
-      case TooltipPosition.top:
-        return const [TooltipPosition.top, TooltipPosition.bottom, TooltipPosition.right, TooltipPosition.left];
-      case TooltipPosition.left:
-        return const [TooltipPosition.left, TooltipPosition.right, TooltipPosition.bottom, TooltipPosition.top];
-      case TooltipPosition.right:
-        return const [TooltipPosition.right, TooltipPosition.left, TooltipPosition.bottom, TooltipPosition.top];
-      case TooltipPosition.bottom:
-      case TooltipPosition.auto:
-        return const [TooltipPosition.bottom, TooltipPosition.top, TooltipPosition.right, TooltipPosition.left];
-    }
-  }
-
-  Offset _offsetFor(TooltipPosition position, Size childSize) {
-    switch (position) {
-      case TooltipPosition.top:
-        return Offset(targetRect.center.dx - childSize.width / 2, targetRect.top - childSize.height - _gap);
-      case TooltipPosition.left:
-        return Offset(targetRect.left - childSize.width - _gap, targetRect.center.dy - childSize.height / 2);
-      case TooltipPosition.right:
-        return Offset(targetRect.right + _gap, targetRect.center.dy - childSize.height / 2);
-      case TooltipPosition.bottom:
-      case TooltipPosition.auto:
-        return Offset(targetRect.center.dx - childSize.width / 2, targetRect.bottom + _gap);
-    }
-  }
-
-  bool _fits(Offset offset, Size childSize) =>
-      offset.dx >= _margin &&
-      offset.dy >= _margin &&
-      offset.dx + childSize.width <= screenSize.width - _margin &&
-      offset.dy + childSize.height <= screenSize.height - _margin;
 
   @override
   bool shouldRelayout(_TooltipLayoutDelegate oldDelegate) =>

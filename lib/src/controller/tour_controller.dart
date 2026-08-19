@@ -1,26 +1,36 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/tour_id.dart';
 import '../models/tour_step.dart';
+import '../models/tour_status.dart';
+import '../storage/shared_preferences_tour_storage.dart';
+import '../storage/tour_storage.dart';
 import '../theme/tour_theme.dart';
+
+typedef TourStepCallback = FutureOr<void> Function(TourStep step);
+typedef TourLifecycleCallback = FutureOr<void> Function();
 
 /// Coordinates tour state, transitions, target scrolling, and persistence.
 class TourController extends ChangeNotifier {
   /// Creates a controller for [steps].
-   TourController({
+  TourController({
     required List<TourStep> steps,
     this.scrollDuration = const Duration(milliseconds: 350),
     this.scrollCurve = Curves.easeInOut,
-    this._theme,
-  }) : _steps = List<TourStep>.unmodifiable(steps);
+    TourTheme? theme,
+    this.storage,
+    this.onStarted,
+    this.onStepChanged,
+    this.onCompleted,
+    this.onSkipped,
+    this.onDismissed,
+  }) : _steps = List<TourStep>.unmodifiable(steps),
+       _theme = theme;
 
   /// The duration used for overlay fade and position transitions.
   static const transitionDuration = Duration(milliseconds: 200);
-
-  static const _seenKeyPrefix = 'flutter_app_tour.seen.';
 
   final List<TourStep> _steps;
   final Map<TourId, GlobalKey> _targetKeys = {};
@@ -29,6 +39,7 @@ class TourController extends ChangeNotifier {
   bool _isActive = false;
   bool _isDisposed = false;
   Timer? _pendingFadeTimer;
+  TourStatus _status = TourStatus.idle;
 
   /// The ordered steps displayed by this tour.
   List<TourStep> get steps => _steps;
@@ -41,6 +52,24 @@ class TourController extends ChangeNotifier {
 
   final TourTheme? _theme;
 
+  /// Optional persistence adapter. Persistence is disabled when omitted.
+  final TourStorage? storage;
+
+  /// Called after the tour starts successfully.
+  final TourLifecycleCallback? onStarted;
+
+  /// Called whenever a step becomes visible.
+  final TourStepCallback? onStepChanged;
+
+  /// Called when the final step is completed.
+  final TourLifecycleCallback? onCompleted;
+
+  /// Called when the user skips the tour.
+  final TourLifecycleCallback? onSkipped;
+
+  /// Called when the tour is dismissed by completion or skipping.
+  final TourLifecycleCallback? onDismissed;
+
   /// Visual configuration used by the overlay.
   ///
   /// The fallback also keeps an existing controller safe during hot reloads
@@ -51,7 +80,10 @@ class TourController extends ChangeNotifier {
   int get currentIndex => _currentIndex;
 
   /// The current step, or `null` when this tour has no steps.
-  TourStep? get currentStep => _steps.isEmpty ? null : _steps[_currentIndex];
+  TourStep? get currentStep =>
+      _currentIndex >= 0 && _currentIndex < _steps.length
+      ? _steps[_currentIndex]
+      : null;
 
   /// Whether the current step is the first step.
   bool get isFirstStep => _steps.isNotEmpty && _currentIndex == 0;
@@ -63,26 +95,20 @@ class TourController extends ChangeNotifier {
   /// Whether the tour is currently active.
   bool get isActive => _isActive;
 
+  /// The current lifecycle state of the tour.
+  TourStatus get status => _status;
+
   /// Returns whether [tourId] has been completed or skipped previously.
   static Future<bool> hasSeenTour(String tourId) async {
-    _validateTourId(tourId);
-    final preferences = await SharedPreferences.getInstance();
-    return preferences.getBool('$_seenKeyPrefix$tourId') ?? false;
+    return const SharedPreferencesTourStorage().hasSeen(tourId);
   }
 
   /// Persists that [tourId] has been completed or skipped.
   static Future<void> markTourAsSeen(String tourId) async {
-    _validateTourId(tourId);
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setBool('$_seenKeyPrefix$tourId', true);
+    await const SharedPreferencesTourStorage().markSeen(tourId);
   }
 
-  static void _validateTourId(String tourId) {
-    if (tourId.trim().isEmpty) {
-      throw ArgumentError.value(tourId, 'tourId', 'must not be empty');
-    }
-  }
-
+  /// Starts the tour. Repeated calls while it is running are ignored.
   /// Starts the tour from its first valid target.
   ///
   /// This activates the controller and advances to the first step that has
@@ -90,19 +116,23 @@ class TourController extends ChangeNotifier {
   /// surrounding UI (through `TourScope`) and notifies listeners to show the
   /// overlay.
   Future<void> start() async {
-    if (_steps.isEmpty || _isDisposed) return;
+    if (_steps.isEmpty || _isDisposed || _status == TourStatus.running) return;
     final transitionId = ++_transitionId;
     await _fadeOutIfVisible(transitionId);
     if (!_isCurrentTransition(transitionId)) return;
     _currentIndex = 0;
+    _status = TourStatus.running;
     await _activateNextAvailableStep(transitionId);
+    if (_isCurrentTransition(transitionId) && _status == TourStatus.running) {
+      await _invokeLifecycleCallback(onStarted);
+    }
   }
 
   /// Advances to the next valid target, finishing after the final step.
   ///
   /// If the controller is inactive or disposed this method is a no-op.
   Future<void> next() async {
-    if (!_isActive || _isDisposed) return;
+    if (!_isActive || _isDisposed || _status != TourStatus.running) return;
     final transitionId = ++_transitionId;
     await _fadeOutIfVisible(transitionId);
     if (!_isCurrentTransition(transitionId)) return;
@@ -115,7 +145,11 @@ class TourController extends ChangeNotifier {
   /// If there is no previous step or the controller is inactive this method
   /// does nothing.
   Future<void> previous() async {
-    if (!_isActive || isFirstStep || _isDisposed) return;
+    if (!_isActive ||
+        isFirstStep ||
+        _isDisposed ||
+        _status != TourStatus.running)
+      return;
     final transitionId = ++_transitionId;
     await _fadeOutIfVisible(transitionId);
     if (!_isCurrentTransition(transitionId)) return;
@@ -124,17 +158,41 @@ class TourController extends ChangeNotifier {
   }
 
   /// Skips all remaining steps and fades out the overlay.
-  void skip() => finish();
+  void skip() {
+    if (_isDisposed || _status != TourStatus.running) return;
+    _transitionId++;
+    _isActive = false;
+    _status = TourStatus.skipped;
+    _notifySafely();
+    unawaited(_invokeLifecycleCallback(onSkipped));
+    unawaited(_invokeLifecycleCallback(onDismissed));
+  }
 
   /// Completes the tour.
   ///
   /// Marks the controller inactive and notifies listeners so the overlay
   /// can hide. Does not persist seen state; callers should use
   /// [markTourAsSeen] when appropriate.
-  void finish() {
+  void complete() {
+    if (_isDisposed || _status != TourStatus.running) return;
+    _transitionId++;
+    _isActive = false;
+    _status = TourStatus.completed;
+    _notifySafely();
+    unawaited(_invokeLifecycleCallback(onCompleted));
+    unawaited(_invokeLifecycleCallback(onDismissed));
+  }
+
+  /// Completes the tour. Kept as a compatibility alias for [complete].
+  void finish() => complete();
+
+  /// Resets the tour to its initial state without invoking lifecycle callbacks.
+  void reset() {
     if (_isDisposed) return;
     _transitionId++;
     _isActive = false;
+    _currentIndex = 0;
+    _status = TourStatus.idle;
     _notifySafely();
   }
 
@@ -157,7 +215,7 @@ class TourController extends ChangeNotifier {
   }
 
   Future<void> _advanceWithoutFade() async {
-    if (!_isActive || _isDisposed) return;
+    if (!_isActive || _isDisposed || _status != TourStatus.running) return;
     final transitionId = ++_transitionId;
     _currentIndex++;
     await _activateNextAvailableStep(transitionId);
@@ -197,33 +255,59 @@ class TourController extends ChangeNotifier {
   }
 
   Future<void> _activateNextAvailableStep(int transitionId) async {
-    while (_isCurrentTransition(transitionId) && _currentIndex < _steps.length) {
+    while (_isCurrentTransition(transitionId) &&
+        _currentIndex < _steps.length) {
+      if (!await _prepareCurrentStep(transitionId)) {
+        _currentIndex++;
+        continue;
+      }
       if (await _scrollCurrentTargetIntoView(transitionId)) {
         _isActive = true;
+        _status = TourStatus.running;
         _notifySafely();
+        await _invokeStepCallback(onStepChanged, currentStep);
         return;
       }
       _currentIndex++;
     }
-    if (_isCurrentTransition(transitionId)) finish();
+    if (_isCurrentTransition(transitionId)) complete();
   }
 
   Future<void> _activatePreviousAvailableStep(int transitionId) async {
     while (_isCurrentTransition(transitionId) && _currentIndex >= 0) {
+      if (!await _prepareCurrentStep(transitionId)) {
+        _currentIndex--;
+        continue;
+      }
       if (await _scrollCurrentTargetIntoView(transitionId)) {
         _isActive = true;
+        _status = TourStatus.running;
         _notifySafely();
+        await _invokeStepCallback(onStepChanged, currentStep);
         return;
       }
       _currentIndex--;
     }
-    if (_isCurrentTransition(transitionId)) finish();
+    if (_isCurrentTransition(transitionId)) complete();
+  }
+
+  Future<bool> _prepareCurrentStep(int transitionId) async {
+    if (!_isCurrentTransition(transitionId)) return false;
+    final callback = currentStep?.onBeforeShow;
+    if (callback == null) return true;
+    try {
+      await callback();
+      return _isCurrentTransition(transitionId);
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> _scrollCurrentTargetIntoView(int transitionId) async {
     final targetContext = currentStep?.targetKey.currentContext;
     if (targetContext == null) return false;
-    if (Scrollable.maybeOf(targetContext) != null) {
+    if (currentStep?.scrollToTarget == true &&
+        Scrollable.maybeOf(targetContext) != null) {
       await Scrollable.ensureVisible(
         targetContext,
         alignment: 0.5,
@@ -251,6 +335,27 @@ class TourController extends ChangeNotifier {
 
   bool _isCurrentTransition(int transitionId) =>
       !_isDisposed && transitionId == _transitionId;
+
+  Future<void> _invokeLifecycleCallback(TourLifecycleCallback? callback) async {
+    if (callback == null) return;
+    try {
+      await callback();
+    } catch (_) {
+      // Lifecycle hooks must not break tour navigation.
+    }
+  }
+
+  Future<void> _invokeStepCallback(
+    TourStepCallback? callback,
+    TourStep? step,
+  ) async {
+    if (callback == null || step == null) return;
+    try {
+      await callback(step);
+    } catch (_) {
+      // Lifecycle hooks must not break tour navigation.
+    }
+  }
 
   void _notifySafely() {
     if (!_isDisposed) notifyListeners();

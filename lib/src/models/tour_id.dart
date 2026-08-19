@@ -4,13 +4,15 @@ import 'package:flutter/foundation.dart';
 @immutable
 class TourId {
   /// Creates a tour identifier from a non-empty string.
-   TourId(this.value) : assert(value.trim().isNotEmpty, 'TourId must not be empty.');
+  TourId(this.value)
+    : assert(value.trim().isNotEmpty, 'TourId must not be empty.');
 
   /// The underlying identifier value.
   final String value;
 
   @override
-  bool operator ==(Object other) => identical(this, other) || other is TourId && other.value == value;
+  bool operator ==(Object other) =>
+      identical(this, other) || other is TourId && other.value == value;
 
   @override
   int get hashCode => value.hashCode;

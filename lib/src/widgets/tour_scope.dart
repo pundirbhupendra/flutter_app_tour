@@ -55,5 +55,3 @@ class _TourScopeState extends State<TourScope> {
     );
   }
 }
-
-

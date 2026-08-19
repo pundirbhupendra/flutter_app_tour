@@ -2,26 +2,11 @@ import 'package:flutter/widgets.dart';
 
 import '../animation/animation_config.dart';
 import '../animation/tour_animation.dart';
-
+import 'spotlight_shape.dart';
 import 'tour_id.dart';
+import 'tooltip_position.dart';
 
-/// Controls where a tour tooltip is placed relative to its target.
-enum TooltipPosition {
-  /// Places the tooltip above the target.
-  top,
-
-  /// Places the tooltip below the target.
-  bottom,
-
-  /// Places the tooltip to the left of the target.
-  left,
-
-  /// Places the tooltip to the right of the target.
-  right,
-
-  /// Lets the tour choose the most suitable position.
-  auto,
-}
+export 'tooltip_position.dart';
 
 /// Describes one target and its content in an application tour.
 class TourStep {
@@ -33,6 +18,11 @@ class TourStep {
     this.tooltipPosition = TooltipPosition.auto,
     this.animation = TourAnimation.pulse,
     this.animationConfig,
+    this.spotlightPadding,
+    this.spotlightRadius,
+    this.spotlightShape,
+    this.scrollToTarget = true,
+    this.onBeforeShow,
   });
 
   /// A strongly typed identifier for this step.
@@ -58,4 +48,19 @@ class TourStep {
   /// Optional per-step animation configuration. When omitted, sensible
   /// defaults from [TourAnimationConfig.defaultConfig] are used.
   final TourAnimationConfig? animationConfig;
+
+  /// Additional space around the highlighted target, in logical pixels.
+  final double? spotlightPadding;
+
+  /// Corner radius used when the step uses a rounded-rectangle spotlight.
+  final double? spotlightRadius;
+
+  /// Shape used to highlight this step's target.
+  final SpotlightShape? spotlightShape;
+
+  /// Whether the controller should scroll this target into view when possible.
+  final bool scrollToTarget;
+
+  /// Runs before this step is displayed.
+  final Future<void> Function()? onBeforeShow;
 }

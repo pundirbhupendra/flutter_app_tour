@@ -24,7 +24,8 @@ class AnimationControllerLayer extends StatefulWidget {
   final VoidCallback? onDispose;
 
   @override
-  State<AnimationControllerLayer> createState() => _AnimationControllerLayerState();
+  State<AnimationControllerLayer> createState() =>
+      _AnimationControllerLayerState();
 }
 
 class _AnimationControllerLayerState extends State<AnimationControllerLayer>
@@ -132,7 +133,9 @@ class _LayerPainter extends CustomPainter {
   void _paintPulse(Canvas canvas, Size size) {
     final center = targetRect.center;
     final maxRadius = (targetRect.size.shortestSide) * 0.8 + 24.0;
-    final radius = (targetRect.shortestSide / 2) * (1 + 0.08 * math.sin(progress * 2 * math.pi));
+    final radius =
+        (targetRect.shortestSide / 2) *
+        (1 + 0.08 * math.sin(progress * 2 * math.pi));
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.0
@@ -146,7 +149,9 @@ class _LayerPainter extends CustomPainter {
     final radius = baseRadius + 12.0 * progress;
     final paint = Paint()
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, 12 * (0.5 + progress))
-      ..color = const Color(0xFF42A5F5).withValues(alpha: 0.25 + 0.5 * (1 - (progress - 0.5).abs()));
+      ..color = const Color(
+        0xFF42A5F5,
+      ).withValues(alpha: 0.25 + 0.5 * (1 - (progress - 0.5).abs()));
     canvas.drawCircle(center, radius, paint);
   }
 
@@ -166,19 +171,24 @@ class _LayerPainter extends CustomPainter {
     final center = targetRect.center;
     final offset = Offset(0, -8 * (1 - (progress * 2 - 1).abs()));
     final r = targetRect.shortestSide / 2 + 6;
-    final paint = Paint()..color = const Color(0xFF42A5F5).withValues(alpha: 0.3);
+    final paint = Paint()
+      ..color = const Color(0xFF42A5F5).withValues(alpha: 0.3);
     canvas.drawCircle(center + offset, r, paint);
   }
 
   void _paintFloating(Canvas canvas, Size size) {
-    final center = targetRect.center + Offset(0, math.sin(progress * 2 * math.pi) * 6);
+    final center =
+        targetRect.center + Offset(0, math.sin(progress * 2 * math.pi) * 6);
     final r = targetRect.shortestSide / 2 + 4;
-    final paint = Paint()..color = const Color(0xFF42A5F5).withValues(alpha: 0.25);
+    final paint = Paint()
+      ..color = const Color(0xFF42A5F5).withValues(alpha: 0.25);
     canvas.drawCircle(center, r, paint);
   }
 
   @override
   bool shouldRepaint(covariant _LayerPainter oldDelegate) {
-    return oldDelegate.progress != progress || oldDelegate.animationConfig != animationConfig || oldDelegate.targetRect != targetRect;
+    return oldDelegate.progress != progress ||
+        oldDelegate.animationConfig != animationConfig ||
+        oldDelegate.targetRect != targetRect;
   }
 }

@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import '../models/tour_step.dart';
@@ -59,6 +58,9 @@ class ArrowPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant ArrowPainter oldDelegate) {
-    return oldDelegate.color != color || oldDelegate.size != size || oldDelegate.position != position || oldDelegate.direction != direction;
+    return oldDelegate.color != color ||
+        oldDelegate.size != size ||
+        oldDelegate.position != position ||
+        oldDelegate.direction != direction;
   }
 }

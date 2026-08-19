@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../models/spotlight_shape.dart';
+
 /// Styles used for tour progress indicator display.
 enum TourProgressIndicatorType {
   /// Displays dot-based step progress.
@@ -14,6 +16,10 @@ class TourTheme {
   /// Creates visual configuration for a tour overlay.
   const TourTheme({
     this.overlayColor = const Color(0x99000000),
+    this.overlayOpacity,
+    this.spotlightPadding = 8.0,
+    this.spotlightRadius = 12.0,
+    this.spotlightShape = SpotlightShape.roundedRectangle,
     this.overlayBlur = 0.0,
     this.tooltipBackgroundColor,
     this.surfaceTint,
@@ -29,6 +35,9 @@ class TourTheme {
     this.showArrow = true,
     this.showProgressDots = true,
     this.progressIndicatorType = TourProgressIndicatorType.dots,
+    this.showNextButton = true,
+    this.showPreviousButton = true,
+    this.showSkipButton = true,
     this.nextButtonStyle,
     this.skipButtonStyle,
     this.previousButtonStyle,
@@ -36,6 +45,18 @@ class TourTheme {
 
   /// The scrim color drawn outside the highlighted target.
   final Color overlayColor;
+
+  /// Optional opacity applied to [overlayColor].
+  final double? overlayOpacity;
+
+  /// Padding around the highlighted target.
+  final double spotlightPadding;
+
+  /// Radius for rounded-rectangle spotlights.
+  final double spotlightRadius;
+
+  /// Default shape used by the spotlight.
+  final SpotlightShape spotlightShape;
 
   /// Optional backdrop blur for the overlay.
   final double overlayBlur;
@@ -90,4 +111,16 @@ class TourTheme {
 
   /// Optional style for the Previous button.
   final ButtonStyle? previousButtonStyle;
+
+  /// Whether the default tooltip shows a Next or Done button.
+  final bool showNextButton;
+
+  /// Whether the default tooltip shows a Previous button.
+  final bool showPreviousButton;
+
+  /// Whether the default tooltip shows a Skip button.
+  final bool showSkipButton;
+
+  /// Whether the default tooltip shows its step indicator.
+  bool get showStepIndicator => showProgressDots;
 }

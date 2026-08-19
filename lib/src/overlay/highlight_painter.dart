@@ -1,21 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../models/spotlight_shape.dart';
+
 /// The shape used for a highlight cutout.
-enum HighlightShape {
-  /// A rounded rectangle matching the highlight bounds.
-  roundedRectangle,
-
-  /// A circle inscribed within the highlight bounds.
-  circle,
-}
-
 /// Paints a dimmed scrim with a transparent rectangular or circular cutout.
 class HighlightPainter extends CustomPainter {
   const HighlightPainter({
     required this.highlight,
     this.color = Colors.black54,
     this.borderRadius = const BorderRadius.all(Radius.circular(8)),
-    this.shape = HighlightShape.roundedRectangle,
+    this.shape = SpotlightShape.roundedRectangle,
   });
 
   /// The screen-space bounds to cut from the scrim.
@@ -28,16 +22,28 @@ class HighlightPainter extends CustomPainter {
   final BorderRadius borderRadius;
 
   /// Whether the cutout is rectangular or circular.
-  final HighlightShape shape;
+  final SpotlightShape shape;
 
   @override
   void paint(Canvas canvas, Size size) {
     final overlay = Path()..addRect(Offset.zero & size);
     final cutout = Path();
-    if (shape == HighlightShape.circle) {
-      cutout.addOval(highlight);
-    } else {
-      cutout.addRRect(borderRadius.toRRect(highlight));
+    switch (shape) {
+      case SpotlightShape.circle:
+        final diameter = highlight.size.longestSide;
+        cutout.addOval(
+          Rect.fromCenter(
+            center: highlight.center,
+            width: diameter,
+            height: diameter,
+          ),
+        );
+      case SpotlightShape.oval:
+        cutout.addOval(highlight);
+      case SpotlightShape.rectangle:
+        cutout.addRect(highlight);
+      case SpotlightShape.roundedRectangle:
+        cutout.addRRect(borderRadius.toRRect(highlight));
     }
     canvas.drawPath(
       Path.combine(PathOperation.difference, overlay, cutout),
