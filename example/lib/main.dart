@@ -31,6 +31,7 @@ class _HomePageState extends State<HomePage> {
   static const _tourId = 'home-tour-v2';
 
   final _fabKey = GlobalKey();
+  final _menuKey = GlobalKey();
   final _searchKey = GlobalKey();
   final _profileKey = GlobalKey();
   final _insightsKey = GlobalKey();
@@ -54,6 +55,13 @@ class _HomePageState extends State<HomePage> {
         description: 'Use search to find projects, notes, and teammates.',
         tooltipPosition: TooltipPosition.bottom,
         spotlightShape: SpotlightShape.circle,
+      ),
+      TourStep(
+        id: TourId('menu'),
+        targetKey: _menuKey,
+        title: 'Open navigation',
+        description: 'Open the drawer to switch between workspace sections.',
+        tooltipPosition: TooltipPosition.bottom,
       ),
       TourStep(
         id: TourId('insights'),
@@ -96,12 +104,31 @@ class _HomePageState extends State<HomePage> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  void _openNavigation(BuildContext context) {
+    Scaffold.of(context).openDrawer();
+    if (_tourController.currentStep?.id.value == 'menu') {
+      _tourController.complete();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return TourScope(
       controller: _tourController,
       child: Scaffold(
         appBar: AppBar(
+          leading: TourTarget(
+            id: TourId('menu'),
+            controller: _tourController,
+            targetKey: _menuKey,
+            child: Builder(
+              builder: (context) => IconButton(
+                tooltip: 'Open navigation',
+                onPressed: () => _openNavigation(context),
+                icon: const Icon(Icons.menu),
+              ),
+            ),
+          ),
           title: const Text('Workspace'),
           actions: [
             TourTarget(
@@ -126,6 +153,43 @@ class _HomePageState extends State<HomePage> {
             ),
             const SizedBox(width: 8),
           ],
+        ),
+        drawer: Drawer(
+          child: SafeArea(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                DrawerHeader(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                  ),
+                  child: Align(
+                    alignment: Alignment.bottomLeft,
+                    child: Text(
+                      'Workspace',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.dashboard_outlined),
+                  title: const Text('Overview'),
+                  selected: true,
+                  onTap: () => Navigator.of(context).pop(),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.folder_outlined),
+                  title: const Text('Projects'),
+                  onTap: () => Navigator.of(context).pop(),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.settings_outlined),
+                  title: const Text('Settings'),
+                  onTap: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+          ),
         ),
         body: ListView(
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 120),

@@ -86,9 +86,7 @@ class _TourOverlayState extends State<TourOverlay> {
           opacity: controller.isActive ? 1 : 0,
           duration: TourController.transitionDuration,
           curve: Curves.easeInOut,
-          child: IgnorePointer(
-            ignoring: !controller.isActive,
-            child: TweenAnimationBuilder<Rect?>(
+          child: TweenAnimationBuilder<Rect?>(
               duration: TourController.transitionDuration,
               curve: Curves.easeInOut,
               tween: RectTween(end: targetRect),
@@ -107,17 +105,18 @@ class _TourOverlayState extends State<TourOverlay> {
                 return Stack(
                   children: [
                     Positioned.fill(
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(
-                          sigmaX: theme.overlayBlur,
-                          sigmaY: theme.overlayBlur,
+                      child: IgnorePointer(
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(
+                            sigmaX: theme.overlayBlur,
+                            sigmaY: theme.overlayBlur,
+                          ),
+                          child: Container(color: overlayColor),
                         ),
-                        child: Container(color: overlayColor),
                       ),
                     ),
                     Positioned.fill(
                       child: IgnorePointer(
-                        ignoring: !controller.isActive,
                         child: CustomPaint(
                           painter: HighlightPainter(
                             highlight: highlight,
@@ -167,7 +166,6 @@ class _TourOverlayState extends State<TourOverlay> {
                 );
               },
             ),
-          ),
         );
       },
     );
