@@ -19,15 +19,14 @@ class TourController extends ChangeNotifier {
     required List<TourStep> steps,
     this.scrollDuration = const Duration(milliseconds: 350),
     this.scrollCurve = Curves.easeInOut,
-    TourTheme? theme,
+    this._theme,
     this.storage,
     this.onStarted,
     this.onStepChanged,
     this.onCompleted,
     this.onSkipped,
     this.onDismissed,
-  }) : _steps = List<TourStep>.unmodifiable(steps),
-       _theme = theme;
+  }) : _steps = List<TourStep>.unmodifiable(steps);
 
   /// The duration used for overlay fade and position transitions.
   static const transitionDuration = Duration(milliseconds: 200);
@@ -148,8 +147,9 @@ class TourController extends ChangeNotifier {
     if (!_isActive ||
         isFirstStep ||
         _isDisposed ||
-        _status != TourStatus.running)
+        _status != TourStatus.running) {
       return;
+    }
     final transitionId = ++_transitionId;
     await _fadeOutIfVisible(transitionId);
     if (!_isCurrentTransition(transitionId)) return;
