@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import '../controller/tour_controller.dart';
 import '../models/tour_step.dart';
 import '../theme/tour_theme.dart';
-import '../theme/arrow_painter.dart';
 import 'highlight_painter.dart';
 import '../animation/animation_controller_layer.dart';
 import '../animation/animation_config.dart';
@@ -91,7 +90,7 @@ class _TourOverlayState extends State<TourOverlay> {
               tween: RectTween(end: targetRect),
               builder: (context, animatedRect, _) {
                 final highlight = animatedRect ?? targetRect;
-                return Stack(
+                  return Stack(
                   children: [
                     Positioned.fill(
                       child: BackdropFilter(
