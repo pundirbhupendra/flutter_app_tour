@@ -30,8 +30,10 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   static const _tourId = 'home-tour-v2';
 
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
   final _fabKey = GlobalKey();
   final _menuKey = GlobalKey();
+  final _drawerOverviewKey = GlobalKey();
   final _searchKey = GlobalKey();
   final _profileKey = GlobalKey();
   final _insightsKey = GlobalKey();
@@ -58,10 +60,19 @@ class _HomePageState extends State<HomePage> {
       ),
       TourStep(
         id: TourId('menu'),
-        targetKey: _menuKey,
+        targetKey: _drawerOverviewKey,
         title: 'Open navigation',
-        description: 'Open the drawer to switch between workspace sections.',
-        tooltipPosition: TooltipPosition.bottom,
+        description: 'Choose a workspace section from the navigation drawer.',
+        tooltipPosition: TooltipPosition.right,
+        animation: TourAnimation.glow,
+        animationConfig: TourAnimationConfig(
+          duration: Duration(milliseconds: 900),
+          repeat: true,
+        ),
+        onBeforeShow: () async {
+          _scaffoldKey.currentState?.openDrawer();
+          await WidgetsBinding.instance.endOfFrame;
+        },
       ),
       TourStep(
         id: TourId('insights'),
@@ -71,6 +82,10 @@ class _HomePageState extends State<HomePage> {
             'This card appears farther down the page to demonstrate automatic scrolling.',
         tooltipPosition: TooltipPosition.auto,
         scrollToTarget: true,
+        onBeforeShow: () async {
+          _scaffoldKey.currentState?.closeDrawer();
+          await WidgetsBinding.instance.endOfFrame;
+        },
       ),
       TourStep(
         id: TourId('profile'),
@@ -106,9 +121,6 @@ class _HomePageState extends State<HomePage> {
 
   void _openNavigation(BuildContext context) {
     Scaffold.of(context).openDrawer();
-    if (_tourController.currentStep?.id.value == 'menu') {
-      _tourController.complete();
-    }
   }
 
   @override
@@ -116,6 +128,7 @@ class _HomePageState extends State<HomePage> {
     return TourScope(
       controller: _tourController,
       child: Scaffold(
+        key: _scaffoldKey,
         appBar: AppBar(
           leading: TourTarget(
             id: TourId('menu'),
@@ -171,11 +184,16 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.dashboard_outlined),
-                  title: const Text('Overview'),
-                  selected: true,
-                  onTap: () => Navigator.of(context).pop(),
+                TourTarget(
+                  id: TourId('menu'),
+                  controller: _tourController,
+                  targetKey: _drawerOverviewKey,
+                  child: ListTile(
+                    leading: const Icon(Icons.dashboard_outlined),
+                    title: const Text('Overview'),
+                    selected: true,
+                    onTap: () => Navigator.of(context).pop(),
+                  ),
                 ),
                 ListTile(
                   leading: const Icon(Icons.folder_outlined),

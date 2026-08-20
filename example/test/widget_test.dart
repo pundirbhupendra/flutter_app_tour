@@ -48,9 +48,7 @@ void main() {
     await tester.tap(find.text('Start product tour'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Next'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Open navigation'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.byType(Drawer), findsOneWidget);
     expect(find.text('Projects'), findsWidgets);

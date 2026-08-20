@@ -132,7 +132,6 @@ class _LayerPainter extends CustomPainter {
 
   void _paintPulse(Canvas canvas, Size size) {
     final center = targetRect.center;
-    final maxRadius = (targetRect.size.shortestSide) * 0.8 + 24.0;
     final radius =
         (targetRect.shortestSide / 2) *
         (1 + 0.08 * math.sin(progress * 2 * math.pi));
